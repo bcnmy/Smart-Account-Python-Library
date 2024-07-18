@@ -26,3 +26,14 @@ PROXY_CREATION_CODE_BYTES = bytes.fromhex(PROXY_CREATION_CODE_HEX)
 PROXY_CREATION_CODE_HASH = Web3.solidity_keccak(
     ["bytes", "uint256"], [PROXY_CREATION_CODE_BYTES, IMPLEMENTATION_ADDRESS_INT]
 )
+
+# Default paymaster context
+DEFAULT_PAYMASTER_CONTEXT = {
+    "mode": "SPONSORED",
+    "calculateGasLimits": True,
+    "expiryDuration": 300,
+    "sponsorshipInfo": {
+        "webhookData": {},
+        "smartAccountInfo": {"name": "BICONOMY", "version": "2.0.0"},
+    },
+}

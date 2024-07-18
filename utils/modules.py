@@ -1,5 +1,5 @@
 from enum import Enum
-import constants
+import utils.constants as constants
 
 
 class ValidationModule(Enum):

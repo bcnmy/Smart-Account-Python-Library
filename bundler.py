@@ -1,11 +1,9 @@
-import requests
-import time
-import json
-from typing import Union
 from userop import UserOperation, UserOperationLib
+from utils.rpc import RPC
+from typing import Union
 
 
-class Bundler:
+class Bundler(RPC):
     """
     A class to interact with a bundler for sending and managing user operations on a blockchain.
 
@@ -20,47 +18,7 @@ class Bundler:
         Args:
             bundler_url (str): The URL of the bundler's RPC endpoint.
         """
-        self.bundler_url = bundler_url
-
-    def _send_json_rpc_request(self, method: str, params: list) -> Union[dict, str]:
-        """
-        Sends a JSON-RPC request to the bundler.
-
-        Args:
-            method (str): The JSON-RPC method to be called.
-            params (list): The parameters for the JSON-RPC method.
-
-        Returns:
-            Union[dict, str]: The result from the JSON-RPC call.
-
-        Raises:
-            Exception: If the request was not successful.
-        """
-        # Create the JSON-RPC request payload
-        payload = {
-            "method": method,
-            "params": params,
-            "id": int(time.time()),
-            "jsonrpc": "2.0",
-        }
-
-        # Make the request to the RPC endpoint
-        headers = {"Content-Type": "application/json"}
-        response = requests.post(
-            self.bundler_url, headers=headers, data=json.dumps(payload)
-        )
-
-        # Check if the request was successful
-        if response.status_code == 200:
-            response_json = response.json()
-            if "result" in response_json:
-                return response_json["result"]
-            elif "error" in response_json:
-                return response_json["error"]
-            else:
-                return response_json
-        else:
-            raise Exception(f"Error: {response.status_code} - {response.text}")
+        super().__init__(bundler_url)
 
     def get_chain_id(self) -> int:
         """
