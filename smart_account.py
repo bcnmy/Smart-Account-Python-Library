@@ -118,7 +118,7 @@ class BiconomyV2SmartAccount:
         balance = self.provider.eth.get_balance(self.smart_account_address)
         return balance
 
-    def get_nonce(self, key: int) -> int:
+    def get_nonce(self, key: int = 0) -> int:
         """
         Retrieves the nonce for the smart account.
 
@@ -232,6 +232,7 @@ class BiconomyV2SmartAccount:
         pre_verification_gas: int = 0,  # Optional param
         verification_gas_limit: int = 0,  # Optional param
         call_gas_limit: int = 0,  # Optional param
+        paymaster_context: dict = constants.DEFAULT_PAYMASTER_CONTEXT,
     ) -> UserOperation:
         """
         Builds a user operation with the specified parameters.
@@ -281,17 +282,32 @@ class BiconomyV2SmartAccount:
                     self.validation_module.get_module_address(),
                 ],
             )
-            userop.signature = estimation_sig
-
-            # Get gas estimation
+            # Get gas estimation from bundler
             gas_estimations = self.bundler.estimate_userop_gas(
                 userop, self.entry_point.address
             )
+            userop.signature = estimation_sig
             userop.max_fee_per_gas = gas_estimations["maxFeePerGas"]
             userop.max_priority_fee_per_gas = gas_estimations["maxPriorityFeePerGas"]
-            userop.pre_verification_gas = gas_estimations["preVerificationGas"]
-            userop.verification_gas_limit = gas_estimations["verificationGasLimit"]
-            userop.call_gas_limit = gas_estimations["callGasLimit"]
+            if self.paymaster:
+                # Get gas estimation from paymaster
+                paymaster_and_data = self.paymaster.sponsor_user_operation(
+                    userop, paymaster_context
+                )
+                userop.paymaster_and_data = bytes.fromhex(
+                    paymaster_and_data["paymasterAndData"][2:]
+                )
+                userop.pre_verification_gas = paymaster_and_data["preVerificationGas"]
+                userop.verification_gas_limit = paymaster_and_data[
+                    "verificationGasLimit"
+                ]
+                userop.call_gas_limit = paymaster_and_data["callGasLimit"]
+            else:
+                # If no paymaster set, use bundler gas estimations
+                userop.pre_verification_gas = gas_estimations["preVerificationGas"]
+                userop.verification_gas_limit = gas_estimations["verificationGasLimit"]
+                userop.call_gas_limit = gas_estimations["callGasLimit"]
+
             userop.signature = b""
 
         return userop

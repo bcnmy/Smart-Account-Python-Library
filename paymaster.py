@@ -40,7 +40,7 @@ class Paymaster(RPC):
             dict: The stub data for the paymaster-related fields.
         """
         params = [
-            UserOperationLib.marshal_partial_userop(userop),
+            UserOperationLib.marshal_paymaster_userop(userop),
             ep_address,
             chain_id,
             context,
@@ -69,7 +69,7 @@ class Paymaster(RPC):
             dict: The values for the paymaster-related fields.
         """
         params = [
-            UserOperationLib.marshal_partial_userop(userop),
+            UserOperationLib.marshal_paymaster_userop(userop),
             ep_address,
             chain_id,
             context,
@@ -91,7 +91,7 @@ class Paymaster(RPC):
         Returns:
             dict: The fee quote or data for the user operation.
         """
-        params = [UserOperationLib.marshal_partial_userop(userop), context]
+        params = [UserOperationLib.marshal_paymaster_userop(userop), context]
         return self._send_json_rpc_request("pm_getFeeQuoteOrData", params)
 
     def sponsor_user_operation(
@@ -107,5 +107,5 @@ class Paymaster(RPC):
         Returns:
             dict: The result of the sponsorship operation.
         """
-        params = [UserOperationLib.marshal_partial_userop(userop), context]
+        params = [UserOperationLib.marshal_paymaster_userop(userop), context]
         return self._send_json_rpc_request("pm_sponsorUserOperation", params)

@@ -287,6 +287,31 @@ class UserOperationLib:
         }
 
     @staticmethod
+    def marshal_paymaster_userop(userop: UserOperation) -> dict[str, str]:
+        """
+        Marshals a UserOperation into a dictionary.
+
+        Args:
+            userop (UserOperation): The UserOperation instance.
+
+        Returns:
+            dict[str, str]: The marshaled UserOperation.
+        """
+        return {
+            "sender": userop.sender,
+            "nonce": hex(userop.nonce),
+            "initCode": "0x" + userop.init_code.hex(),
+            "callData": "0x" + userop.call_data.hex(),
+            "callGasLimit": str(userop.call_gas_limit),
+            "verificationGasLimit": str(userop.verification_gas_limit),
+            "preVerificationGas": str(userop.pre_verification_gas),
+            "maxFeePerGas": str(userop.max_fee_per_gas),
+            "maxPriorityFeePerGas": str(userop.max_priority_fee_per_gas),
+            "paymasterAndData": "0x" + userop.paymaster_and_data.hex(),
+            "signature": "0x" + userop.signature.hex(),
+        }
+
+    @staticmethod
     def unmarshal_userop(userop: dict) -> UserOperation:
         """
         Unmarshals a dictionary into a UserOperation instance.
