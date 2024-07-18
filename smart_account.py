@@ -12,7 +12,7 @@ import constants
 
 class BiconomyV2SmartAccount:
     """
-    Represents a smart account managed through the Biconomy bundler.
+    Represents a Biconomy V2 Smart Account.
 
     Attributes:
         provider (Web3): The Web3 provider instance.
@@ -100,7 +100,7 @@ class BiconomyV2SmartAccount:
                 constants.PROXY_CREATION_CODE_HASH,
             ],
         )
-        print(self.smart_account_factory_v2.functions.minimalHandler().call())
+
         smart_account_address = to_checksum_address(create2_hash[-20:])
         return smart_account_address
 
