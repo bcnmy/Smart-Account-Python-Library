@@ -294,14 +294,17 @@ class BiconomyV2SmartAccount:
                 paymaster_and_data = self.paymaster.sponsor_user_operation(
                     userop, paymaster_context
                 )
+                print(paymaster_and_data)
                 userop.paymaster_and_data = bytes.fromhex(
                     paymaster_and_data["paymasterAndData"][2:]
                 )
-                userop.pre_verification_gas = paymaster_and_data["preVerificationGas"]
-                userop.verification_gas_limit = paymaster_and_data[
-                    "verificationGasLimit"
-                ]
-                userop.call_gas_limit = paymaster_and_data["callGasLimit"]
+                userop.pre_verification_gas = int(
+                    paymaster_and_data["preVerificationGas"]
+                )
+                userop.verification_gas_limit = int(
+                    paymaster_and_data["verificationGasLimit"]
+                )
+                userop.call_gas_limit = int(paymaster_and_data["callGasLimit"])
             else:
                 # If no paymaster set, use bundler gas estimations
                 userop.pre_verification_gas = gas_estimations["preVerificationGas"]
