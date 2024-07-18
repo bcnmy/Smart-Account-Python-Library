@@ -144,7 +144,9 @@ class Bundler:
         )
         return result
 
-    def get_user_operation_by_hash(self, userop_hash: str) -> Union[UserOperation, None]:
+    def get_user_operation_by_hash(
+        self, userop_hash: str
+    ) -> Union[UserOperation, None]:
         """
         Retrieves a user operation by its hash.
 

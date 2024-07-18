@@ -9,11 +9,6 @@ from typing import Union
 import json
 import constants
 
-# Testing on base sepolia
-RPC_URL = "https://base-sepolia.g.alchemy.com/v2/P_GOGjaz__F1Cx2lxooWk6dXD6XFDDuM"
-BUNDLER_URL = "https://bundler.biconomy.io/api/v2/84532/nJPK7B3ru.dd7f7861-190d-41bd-af80-6877f74b8f44"
-PRIVATE_KEY = "0x9de83b0d691a45444535ac5975a047d8d35efb99373e621b0a348d0d6fc019e0"
-
 
 class BiconomyV2SmartAccount:
     """
@@ -332,7 +327,7 @@ class BiconomyV2SmartAccount:
             str: The transaction hash of the sent user operation.
         """
         return self.bundler.send_userop(userop, self.entry_point.address)
-    
+
     def get_userop_status(self, userop_hash: str) -> str:
         """
         Retrieves the status of a user operation by its hash.
@@ -344,7 +339,7 @@ class BiconomyV2SmartAccount:
             str: The status of the user operation.
         """
         return self.bundler.get_user_operation_status(userop_hash)
-    
+
     def get_userop_by_hash(self, userop_hash: str) -> Union[UserOperation, None]:
         """
         Retrieves a user operation by its hash.
@@ -356,7 +351,7 @@ class BiconomyV2SmartAccount:
             Union[UserOperation, None]: The user operation, or None if not found.
         """
         return self.bundler.get_user_operation_by_hash(userop_hash)
-    
+
     def get_userop_receipt(self, userop_hash: str) -> Union[dict, None]:
         """
         Retrieves the receipt of a user operation by its hash.
@@ -501,4 +496,3 @@ class BiconomyV2SmartAccount:
         with open(file_path, "r") as file:
             abi = json.load(file)
         return abi
-
