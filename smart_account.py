@@ -282,11 +282,11 @@ class BiconomyV2SmartAccount:
                     self.validation_module.get_module_address(),
                 ],
             )
+            userop.signature = estimation_sig
             # Get gas estimation from bundler
             gas_estimations = self.bundler.estimate_userop_gas(
                 userop, self.entry_point.address
             )
-            userop.signature = estimation_sig
             userop.max_fee_per_gas = gas_estimations["maxFeePerGas"]
             userop.max_priority_fee_per_gas = gas_estimations["maxPriorityFeePerGas"]
             if self.paymaster:
