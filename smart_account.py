@@ -1,13 +1,14 @@
 from web3 import Web3
 from bundler import Bundler
+from paymaster import Paymaster
 from userop import UserOperation, UserOperationLib
 from eth_abi import encode
 from eth_utils import keccak, to_checksum_address
 from eth_account import Account
-from modules import ValidationModule
+from utils.modules import ValidationModule
 from typing import Union
 import json
-import constants
+import utils.constants as constants
 
 
 class BiconomyV2SmartAccount:
@@ -21,7 +22,7 @@ class BiconomyV2SmartAccount:
         private_key (str): The private key for signing transactions.
         eoa_address (str): The externally owned account (EOA) address.
         smart_account_address (str): The smart account address.
-        paymaster_id (str): The paymaster ID.
+        paymaster_url (str): The paymaster ID.
         index (int): The index of the account.
     """
 
@@ -29,9 +30,9 @@ class BiconomyV2SmartAccount:
         self,
         rpc_url: str,
         bundler_url: str,
-        paymaster_id: str,
         private_key: str,
         index: int = 0,
+        paymaster_url: Union[str, None] = None,
         validation_module: ValidationModule = ValidationModule.ECDSA,
     ):
         """
@@ -40,7 +41,7 @@ class BiconomyV2SmartAccount:
         Args:
             rpc_url (str): The URL of the RPC provider.
             bundler_url (str): The URL of the bundler.
-            paymaster_id (str): The paymaster ID.
+            paymaster_url (str): The paymaster ID.
             private_key (str): The private key for signing transactions.
             index (int, optional): The index of the account. Defaults to 0.
             validation_module (ValidationModule, optional): The validation module to be used. Defaults to ValidationModule.ECDSA.
@@ -55,7 +56,10 @@ class BiconomyV2SmartAccount:
         self.private_key = private_key
         self.eoa_address = self.get_eoa_address()
         self.smart_account_address = self.get_smart_account_address()
-        self.paymaster_id = paymaster_id
+        if paymaster_url:
+            self.paymaster = Paymaster(paymaster_url)
+        else:
+            self.paymaster = None
 
     def get_eoa_address(self) -> str:
         """
@@ -114,7 +118,7 @@ class BiconomyV2SmartAccount:
         balance = self.provider.eth.get_balance(self.smart_account_address)
         return balance
 
-    def get_nonce(self, key: int) -> int:
+    def get_nonce(self, key: int = 0) -> int:
         """
         Retrieves the nonce for the smart account.
 
@@ -228,6 +232,7 @@ class BiconomyV2SmartAccount:
         pre_verification_gas: int = 0,  # Optional param
         verification_gas_limit: int = 0,  # Optional param
         call_gas_limit: int = 0,  # Optional param
+        paymaster_context: dict = constants.DEFAULT_PAYMASTER_CONTEXT,
     ) -> UserOperation:
         """
         Builds a user operation with the specified parameters.
@@ -278,16 +283,34 @@ class BiconomyV2SmartAccount:
                 ],
             )
             userop.signature = estimation_sig
-
-            # Get gas estimation
+            # Get gas estimation from bundler
             gas_estimations = self.bundler.estimate_userop_gas(
                 userop, self.entry_point.address
             )
             userop.max_fee_per_gas = gas_estimations["maxFeePerGas"]
             userop.max_priority_fee_per_gas = gas_estimations["maxPriorityFeePerGas"]
-            userop.pre_verification_gas = gas_estimations["preVerificationGas"]
-            userop.verification_gas_limit = gas_estimations["verificationGasLimit"]
-            userop.call_gas_limit = gas_estimations["callGasLimit"]
+            if self.paymaster:
+                # Get gas estimation from paymaster
+                paymaster_and_data = self.paymaster.sponsor_user_operation(
+                    userop, paymaster_context
+                )
+                print(paymaster_and_data)
+                userop.paymaster_and_data = bytes.fromhex(
+                    paymaster_and_data["paymasterAndData"][2:]
+                )
+                userop.pre_verification_gas = int(
+                    paymaster_and_data["preVerificationGas"]
+                )
+                userop.verification_gas_limit = int(
+                    paymaster_and_data["verificationGasLimit"]
+                )
+                userop.call_gas_limit = int(paymaster_and_data["callGasLimit"])
+            else:
+                # If no paymaster set, use bundler gas estimations
+                userop.pre_verification_gas = gas_estimations["preVerificationGas"]
+                userop.verification_gas_limit = gas_estimations["verificationGasLimit"]
+                userop.call_gas_limit = gas_estimations["callGasLimit"]
+
             userop.signature = b""
 
         return userop

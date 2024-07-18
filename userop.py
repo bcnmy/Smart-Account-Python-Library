@@ -1,7 +1,6 @@
-from Crypto.Hash import keccak
 from eth_abi import encode, is_encodable
-from web3 import Web3
 from typing import List, Tuple, Union
+from eth_utils import keccak
 
 
 class UserOperation:
@@ -153,9 +152,9 @@ class UserOperationLib:
         Returns:
             bytes: Packed byte array of the UserOperation attributes.
         """
-        hash_init_code = UserOperationLib.keccak(userop.init_code)
-        hash_call_data = UserOperationLib.keccak(userop.call_data)
-        hash_paymaster_and_data = UserOperationLib.keccak(userop.paymaster_and_data)
+        hash_init_code = keccak(userop.init_code)
+        hash_call_data = keccak(userop.call_data)
+        hash_paymaster_and_data = keccak(userop.paymaster_and_data)
 
         packed = encode(
             [
@@ -189,7 +188,7 @@ class UserOperationLib:
     @staticmethod
     def hash(userop: UserOperation, entry_point_address: str, chain_id: int) -> bytes:
         """
-        Hashes the UserOperation attributes with additional entry point address and chain ID.
+        Hashes the UserOperation as specified by ERC4337.
 
         Args:
             userop (UserOperation): The UserOperation instance.
@@ -200,12 +199,12 @@ class UserOperationLib:
             bytes: Hash of the packed UserOperation attributes.
         """
         packed_userop = UserOperationLib.pack(userop)
-        packed_userop_hash = UserOperationLib.keccak(packed_userop)
+        packed_userop_hash = keccak(packed_userop)
         encoded_hash = encode(
             ["bytes32", "address", "uint256"],
             [packed_userop_hash, entry_point_address, chain_id],
         )
-        return UserOperationLib.keccak(encoded_hash)
+        return keccak(encoded_hash)
 
     @staticmethod
     def min(a: int, b: int) -> int:
@@ -220,21 +219,6 @@ class UserOperationLib:
             int: The minimum of the two integers.
         """
         return a if a < b else b
-
-    @staticmethod
-    def keccak(data: bytes) -> bytes:
-        """
-        Computes the Keccak-256 hash of the given data.
-
-        Args:
-            data (bytes): The data to hash.
-
-        Returns:
-            bytes: The Keccak-256 hash of the data.
-        """
-        k = keccak.new(digest_bits=256)
-        k.update(data)
-        return k.digest()
 
     @staticmethod
     def check_encodability(
@@ -298,6 +282,31 @@ class UserOperationLib:
             "preVerificationGas": hex(userop.pre_verification_gas),
             "maxFeePerGas": hex(userop.max_fee_per_gas),
             "maxPriorityFeePerGas": hex(userop.max_priority_fee_per_gas),
+            "paymasterAndData": "0x" + userop.paymaster_and_data.hex(),
+            "signature": "0x" + userop.signature.hex(),
+        }
+
+    @staticmethod
+    def marshal_paymaster_userop(userop: UserOperation) -> dict[str, str]:
+        """
+        Marshals a UserOperation into a dictionary.
+
+        Args:
+            userop (UserOperation): The UserOperation instance.
+
+        Returns:
+            dict[str, str]: The marshaled UserOperation.
+        """
+        return {
+            "sender": userop.sender,
+            "nonce": hex(userop.nonce),
+            "initCode": "0x" + userop.init_code.hex(),
+            "callData": "0x" + userop.call_data.hex(),
+            "callGasLimit": str(userop.call_gas_limit),
+            "verificationGasLimit": str(userop.verification_gas_limit),
+            "preVerificationGas": str(userop.pre_verification_gas),
+            "maxFeePerGas": str(userop.max_fee_per_gas),
+            "maxPriorityFeePerGas": str(userop.max_priority_fee_per_gas),
             "paymasterAndData": "0x" + userop.paymaster_and_data.hex(),
             "signature": "0x" + userop.signature.hex(),
         }
