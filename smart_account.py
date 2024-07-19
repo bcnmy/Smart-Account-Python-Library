@@ -118,6 +118,36 @@ class BiconomyV2SmartAccount:
         balance = self.provider.eth.get_balance(self.smart_account_address)
         return balance
 
+    def send_eth(self, recipient: str, amount_wei: int, nonce_key: int = 0) -> str:
+        if amount_wei <= 0 or not isinstance(amount_wei, int):
+            raise ValueError("Amount must be a positive integer")
+
+        if not Web3.is_address(recipient):
+            raise ValueError("Recipient must be a valid ethereum address")
+
+        if not self.is_deployed():
+            raise Exception(
+                f"Account at address {self.smart_account_address} isn't deployed"
+            )
+
+        sa_balance = self.provider.eth.get_balance(self.smart_account_address)
+        if amount_wei > sa_balance:
+            raise ValueError("Amount is greater than account balance")
+
+        call_data = self.smart_account_implementation_v2.encode_abi(
+            fn_name="execute",
+            args=[
+                recipient,
+                amount_wei,
+                b"",
+            ],
+        )
+        userop = self.build_user_op(
+            nonce=self.get_nonce(nonce_key), call_data=bytes.fromhex(call_data[2:])
+        )
+        userop = self.sign_userop(userop)
+        return self.send_userop(userop)
+
     def get_nonce(self, key: int = 0) -> int:
         """
         Retrieves the nonce for the smart account.
@@ -147,12 +177,12 @@ class BiconomyV2SmartAccount:
             amount_wei (int): The amount of wei to fund the account with.
 
         Returns:
-            str: The transaction hash of the funding transaction.
+            str: The userop hash of the funding transaction.
 
         Raises:
             ValueError: If the amount is greater than the account balance or is not a positive integer.
         """
-        if amount_wei < 0 or not isinstance(amount_wei, int):
+        if amount_wei <= 0 or not isinstance(amount_wei, int):
             raise ValueError("Amount must be a positive integer")
 
         eoa_balance = self.provider.eth.get_balance(self.eoa_address)
@@ -188,15 +218,14 @@ class BiconomyV2SmartAccount:
             nonce_key (int, optional): The nonce key to use. Defaults to 0.
 
         Returns:
-            str: The transaction hash of the deployment transaction.
+            str: The userop hash of the deployment transaction.
 
         Raises:
             Exception: If the account is already deployed.
         """
         # Check if account is already deployed
         if self.is_deployed():
-            smart_account_address = self.smart_account_address
-            raise Exception(f"Account at address {smart_account_address} exists")
+            raise Exception(f"Account at address {self.smart_account_address} exists")
 
         # Generate setup data for setting eoa as owner of sa in ecdsa module
         ownership_module_setup_data = self._get_module_setup_data()
@@ -221,17 +250,10 @@ class BiconomyV2SmartAccount:
 
     def build_user_op(
         self,
-        sender: str,
-        nonce: int,
-        init_code: bytes = b"",  # Optional param
-        call_data: bytes = b"",  # Optional param
-        paymaster_and_data: bytes = b"",  # Optional param
-        # Gas parameters: if default values are passed in for any of them, bundler suggestions are used
-        max_fee_per_gas: int = 0,  # Optional param.
-        max_priority_fee_per_gas: int = 0,  # Optional param
-        pre_verification_gas: int = 0,  # Optional param
-        verification_gas_limit: int = 0,  # Optional param
-        call_gas_limit: int = 0,  # Optional param
+        # If nonce is null, they will be derived from this smart account instance
+        nonce: Union[int, None] = None,
+        init_code: bytes = b"",
+        call_data: bytes = b"",
         paymaster_context: dict = constants.DEFAULT_PAYMASTER_CONTEXT,
     ) -> UserOperation:
         """
@@ -252,64 +274,54 @@ class BiconomyV2SmartAccount:
         Returns:
             UserOperation: The constructed user operation.
         """
-        # Build the user operation object
+        # Build the initial user operation object
         userop = UserOperation(
-            sender,
-            nonce,
+            self.smart_account_address,
+            nonce if nonce is not None else self.get_nonce(),
             init_code,
             call_data,
-            call_gas_limit,
-            verification_gas_limit,
-            pre_verification_gas,
-            max_fee_per_gas,
-            max_priority_fee_per_gas,
-            paymaster_and_data,
+            call_gas_limit=0,
+            verification_gas_limit=0,
+            pre_verification_gas=0,
+            max_fee_per_gas=0,
+            max_priority_fee_per_gas=0,
+            paymaster_and_data=b"",
             signature=b"",
         )
 
-        if (
-            max_fee_per_gas == 0
-            or max_priority_fee_per_gas == 0
-            or pre_verification_gas == 0
-            or verification_gas_limit == 0
-            or call_gas_limit == 0
-        ):
-            # Get dummy signature for gas estimation
-            estimation_sig = encode(
-                ["bytes", "address"],
-                [
-                    self._sign_hash(constants.DUMMY_DATA_HASH),
-                    self.validation_module.get_module_address(),
-                ],
+        # Get dummy signature for gas estimation
+        estimation_sig = encode(
+            ["bytes", "address"],
+            [
+                self._sign_hash(constants.DUMMY_DATA_HASH),
+                self.validation_module.get_module_address(),
+            ],
+        )
+        userop.signature = estimation_sig
+        # Get gas estimation from bundler
+        gas_estimations = self.bundler.estimate_userop_gas(
+            userop, self.entry_point.address
+        )
+        userop.max_fee_per_gas = gas_estimations["maxFeePerGas"]
+        userop.max_priority_fee_per_gas = gas_estimations["maxPriorityFeePerGas"]
+        if self.paymaster:
+            # Get gas estimation from paymaster
+            paymaster_and_data = self.paymaster.sponsor_user_operation(
+                userop, paymaster_context
             )
-            userop.signature = estimation_sig
-            # Get gas estimation from bundler
-            gas_estimations = self.bundler.estimate_userop_gas(
-                userop, self.entry_point.address
+            userop.paymaster_and_data = bytes.fromhex(
+                paymaster_and_data["paymasterAndData"][2:]
             )
-            userop.max_fee_per_gas = gas_estimations["maxFeePerGas"]
-            userop.max_priority_fee_per_gas = gas_estimations["maxPriorityFeePerGas"]
-            if self.paymaster:
-                # Get gas estimation from paymaster
-                paymaster_and_data = self.paymaster.sponsor_user_operation(
-                    userop, paymaster_context
-                )
-                print(paymaster_and_data)
-                userop.paymaster_and_data = bytes.fromhex(
-                    paymaster_and_data["paymasterAndData"][2:]
-                )
-                userop.pre_verification_gas = int(
-                    paymaster_and_data["preVerificationGas"]
-                )
-                userop.verification_gas_limit = int(
-                    paymaster_and_data["verificationGasLimit"]
-                )
-                userop.call_gas_limit = int(paymaster_and_data["callGasLimit"])
-            else:
-                # If no paymaster set, use bundler gas estimations
-                userop.pre_verification_gas = gas_estimations["preVerificationGas"]
-                userop.verification_gas_limit = gas_estimations["verificationGasLimit"]
-                userop.call_gas_limit = gas_estimations["callGasLimit"]
+            userop.pre_verification_gas = int(paymaster_and_data["preVerificationGas"])
+            userop.verification_gas_limit = int(
+                paymaster_and_data["verificationGasLimit"]
+            )
+            userop.call_gas_limit = int(paymaster_and_data["callGasLimit"])
+        else:
+            # If no paymaster set, use bundler gas estimations
+            userop.pre_verification_gas = gas_estimations["preVerificationGas"]
+            userop.verification_gas_limit = gas_estimations["verificationGasLimit"]
+            userop.call_gas_limit = gas_estimations["callGasLimit"]
 
             userop.signature = b""
 
@@ -347,7 +359,7 @@ class BiconomyV2SmartAccount:
             userop (UserOperation): The user operation to send.
 
         Returns:
-            str: The transaction hash of the sent user operation.
+            str: The userop hash of the sent user operation.
         """
         return self.bundler.send_userop(userop, self.entry_point.address)
 
