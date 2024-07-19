@@ -119,6 +119,22 @@ class BiconomyV2SmartAccount:
         return balance
 
     def send_eth(self, recipient: str, amount_wei: int, nonce_key: int = 0) -> str:
+        """
+        Sends a specified amount of Ether to a recipient address using a user operation.
+
+        Args:
+            recipient (str): The Ethereum address of the recipient.
+            amount_wei (int): The amount of Ether to send, in wei.
+            nonce_key (int, optional): The key for the nonce value. Default is 0.
+
+        Returns:
+            str: The transaction hash of the user operation.
+
+        Raises:
+            ValueError: If the amount is not a positive integer, or if the recipient address is invalid,
+                        or if the amount is greater than the account balance.
+            Exception: If the smart account is not deployed.
+        """
         if amount_wei <= 0 or not isinstance(amount_wei, int):
             raise ValueError("Amount must be a positive integer")
 
@@ -169,13 +185,13 @@ class BiconomyV2SmartAccount:
         ).call()
         return nonce
 
-    def fund_account(self, amount_wei: int) -> str:
+    def fund_account(self, amount_wei: int, gas: int = 50000) -> str:
         """
         Funds the smart account with the specified amount of wei.
 
         Args:
             amount_wei (int): The amount of wei to fund the account with.
-
+            gas (int): The amount of gas to send with the transaction.
         Returns:
             str: The userop hash of the funding transaction.
 
@@ -199,7 +215,7 @@ class BiconomyV2SmartAccount:
             "to": self.smart_account_address,
             "value": amount_wei,
             "nonce": self.provider.eth.get_transaction_count(self.eoa_address),
-            "gas": 21000,
+            "gas": gas,
             "maxFeePerGas": max_fee_per_gas,
             "maxPriorityFeePerGas": max_priority_fee_per_gas,
             "chainId": self.provider.eth.chain_id,
@@ -208,7 +224,7 @@ class BiconomyV2SmartAccount:
         signed_txn = Account.sign_transaction(transaction, self.private_key)
 
         tx_hash = self.provider.eth.send_raw_transaction(signed_txn.raw_transaction)
-        return tx_hash
+        return tx_hash.hex()
 
     def deploy_smart_account(self, nonce_key: int = 0) -> str:
         """
@@ -243,7 +259,7 @@ class BiconomyV2SmartAccount:
 
         # Build userop
         userop: UserOperation = self.build_user_op(
-            sender=self.smart_account_address, nonce=nonce, init_code=init_code
+            nonce=nonce, init_code=init_code
         )
         userop = self.sign_userop(userop)
         return self.send_userop(userop)
@@ -323,7 +339,7 @@ class BiconomyV2SmartAccount:
             userop.verification_gas_limit = gas_estimations["verificationGasLimit"]
             userop.call_gas_limit = gas_estimations["callGasLimit"]
 
-            userop.signature = b""
+        userop.signature = b""
 
         return userop
 
