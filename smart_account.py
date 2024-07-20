@@ -185,13 +185,21 @@ class BiconomyV2SmartAccount:
         ).call()
         return nonce
 
-    def fund_account(self, amount_wei: int, gas: int = 50000) -> str:
+    def fund_account(
+        self,
+        amount_wei: int,
+        gas: int = 50000,
+        max_fee_per_gas: int = 0,
+        max_priority_fee_per_gas: int = 0,
+    ) -> str:
         """
         Funds the smart account with the specified amount of wei.
 
         Args:
             amount_wei (int): The amount of wei to fund the account with.
             gas (int): The amount of gas to send with the transaction.
+            max_fee_per_gas (int): The max fee per unit of gas.
+            max_priority_fee_per_gas (int): The max additional fee over the baseFeePerGas per gas.
         Returns:
             str: The userop hash of the funding transaction.
 
@@ -205,10 +213,11 @@ class BiconomyV2SmartAccount:
         if amount_wei >= eoa_balance:
             raise ValueError("Amount is greater than account balance")
 
-        latest_block = self.provider.eth.get_block("latest")
-        base_fee_per_gas = latest_block["baseFeePerGas"]
-        max_priority_fee_per_gas = Web3.to_wei(2, "gwei")
-        max_fee_per_gas = base_fee_per_gas + max_priority_fee_per_gas
+        if max_fee_per_gas == 0 or max_priority_fee_per_gas == 0:
+            latest_block = self.provider.eth.get_block("latest")
+            base_fee_per_gas = latest_block["baseFeePerGas"]
+            max_priority_fee_per_gas = Web3.to_wei(2, "gwei")
+            max_fee_per_gas = base_fee_per_gas + max_priority_fee_per_gas
 
         transaction = {
             "from": self.eoa_address,
@@ -258,9 +267,7 @@ class BiconomyV2SmartAccount:
         nonce = self.get_nonce(nonce_key)
 
         # Build userop
-        userop: UserOperation = self.build_user_op(
-            nonce=nonce, init_code=init_code
-        )
+        userop: UserOperation = self.build_user_op(nonce=nonce, init_code=init_code)
         userop = self.sign_userop(userop)
         return self.send_userop(userop)
 
@@ -353,19 +360,30 @@ class BiconomyV2SmartAccount:
         Returns:
             UserOperation: The signed user operation.
         """
-        userop_hash = UserOperationLib.hash(
-            userop, self.entry_point.address, self.provider.eth.chain_id
-        )
-        signed_userop_hash = self._sign_hash(userop_hash)
-        complete_userop_signature = encode(
-            ["bytes", "address"],
-            [
-                signed_userop_hash,
-                self.validation_module.get_module_address(),
-            ],
-        )
-        userop.signature = complete_userop_signature
-        return userop
+        if self.validation_module == ValidationModule.ECDSA:
+            userop_hash = UserOperationLib.hash(
+                userop, self.entry_point.address, self.provider.eth.chain_id
+            )
+            signed_userop_hash = self._sign_hash(userop_hash)
+            complete_userop_signature = encode(
+                ["bytes", "address"],
+                [
+                    signed_userop_hash,
+                    self.validation_module.get_module_address(),
+                ],
+            )
+            userop.signature = complete_userop_signature
+            return userop
+        elif self.validation_module == ValidationModule.MULTICHAIN_VALIDATION_MODULE:
+            raise ValueError(f"Module not yet supported: {self.validation_module}")
+        elif self.validation_module == ValidationModule.BATCHED_SESSION_ROUTER_MODULE:
+            raise ValueError(f"Module not yet supported: {self.validation_module}")
+        elif self.validation_module == ValidationModule.ABI_SESSION_VALIDATION_MODULE:
+            raise ValueError(f"Module not yet supported: {self.validation_module}")
+        elif self.validation_module == ValidationModule.SESSION_KEY_MANAGER_V1:
+            raise ValueError(f"Module not yet supported: {self.validation_module}")
+        else:
+            raise ValueError(f"Unknown validation module: {self.validation_module}")
 
     def send_userop(self, userop: UserOperation) -> str:
         """
