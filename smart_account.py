@@ -374,12 +374,6 @@ class BiconomyV2SmartAccount:
             )
             userop.signature = complete_userop_signature
             return userop
-        elif self.validation_module == ValidationModule.MULTICHAIN_VALIDATION_MODULE:
-            raise ValueError(f"Module not yet supported: {self.validation_module}")
-        elif self.validation_module == ValidationModule.BATCHED_SESSION_ROUTER_MODULE:
-            raise ValueError(f"Module not yet supported: {self.validation_module}")
-        elif self.validation_module == ValidationModule.ABI_SESSION_VALIDATION_MODULE:
-            raise ValueError(f"Module not yet supported: {self.validation_module}")
         elif self.validation_module == ValidationModule.SESSION_KEY_MANAGER_V1:
             raise ValueError(f"Module not yet supported: {self.validation_module}")
         else:
@@ -494,15 +488,6 @@ class BiconomyV2SmartAccount:
             abi=smart_account_implementation_v2_abi,
         )
 
-        # Instantiate global ECDSA implementation
-        ecdsa_ownership_module_abi = self.read_abi(
-            "./contract_abis/ecdsa_ownership_module.json"
-        )
-        self.ecdsa_ownership_module = self.provider.eth.contract(
-            address=self.validation_module.get_module_address(),
-            abi=ecdsa_ownership_module_abi,
-        )
-
     def _check_index(self):
         """
         Checks if the index is a positive integer.
@@ -523,10 +508,10 @@ class BiconomyV2SmartAccount:
         Returns:
             bytes: The signature of the hash.
         """
-        signed_hash = Account.signHash(hash, self.private_key)
+        signed_hash = Account._sign_hash(hash, self.private_key)
         return signed_hash.signature
 
-    def _get_module_setup_data(self) -> str:
+    def _get_module_setup_data(self, ) -> str:
         """
         Returns the setup data for the validation module.
 
@@ -537,16 +522,29 @@ class BiconomyV2SmartAccount:
             ValueError: If the validation module is not supported or unknown.
         """
         if self.validation_module == ValidationModule.ECDSA:
-            return self.ecdsa_ownership_module.encode_abi(
+            # Instantiate global ECDSA implementation
+            ecdsa_ownership_module_abi = self.read_abi(
+                "./contract_abis/ecdsa_ownership_module.json"
+            )
+            ecdsa_ownership_module = self.provider.eth.contract(
+                address=self.validation_module.get_module_address(),
+                abi=ecdsa_ownership_module_abi,
+            )
+            return ecdsa_ownership_module.encode_abi(
                 fn_name="initForSmartAccount", args=[self.eoa_address]
             )
-        elif self.validation_module == ValidationModule.MULTICHAIN_VALIDATION_MODULE:
-            raise ValueError(f"Module not yet supported: {self.validation_module}")
-        elif self.validation_module == ValidationModule.BATCHED_SESSION_ROUTER_MODULE:
-            raise ValueError(f"Module not yet supported: {self.validation_module}")
-        elif self.validation_module == ValidationModule.ABI_SESSION_VALIDATION_MODULE:
-            raise ValueError(f"Module not yet supported: {self.validation_module}")
         elif self.validation_module == ValidationModule.SESSION_KEY_MANAGER_V1:
+            # Instantiate global ECDSA implementation
+            session_key_manager_module_abi = self.read_abi(
+                "./contract_abis/ecdsa_ownership_module.json"
+            )
+            session_key_manager_module = self.provider.eth.contract(
+                address=self.validation_module.get_module_address(),
+                abi=session_key_manager_module_abi,
+            )
+            return session_key_manager_module.encode_abi(
+                fn_name="setMerkleRoot", args=[]
+            )
             raise ValueError(f"Module not yet supported: {self.validation_module}")
         else:
             raise ValueError(f"Unknown validation module: {self.validation_module}")
