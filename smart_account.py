@@ -30,8 +30,9 @@ class BiconomyV2SmartAccount:
         self,
         rpc_url: str,
         bundler_url: str,
-        private_key: str,
         index: int = 0,
+        eoa_address: str = "",
+        private_key: str = "",
         paymaster_url: Union[str, None] = None,
         validation_module: ValidationModule = ValidationModule.ECDSA,
     ):
@@ -53,8 +54,9 @@ class BiconomyV2SmartAccount:
         self._set_contract_instances()
         self.index = index
         self._check_index()
-        self.private_key = private_key
-        self.eoa_address = self.get_eoa_address()
+        if private_key:
+            self.private_key = private_key
+            self.eoa_address = self.get_eoa_address()
         self.smart_account_address = self.get_smart_account_address()
         if paymaster_url:
             self.paymaster = Paymaster(paymaster_url)
@@ -85,7 +87,7 @@ class BiconomyV2SmartAccount:
             fn_name="init",
             args=[
                 constants.DEFAULT_FALLBACK_HANDLER_ADDRESS,
-                self.validation_module.get_module_address(),
+                self.validation_module.get_address(),
                 bytes.fromhex(ownership_module_setup_data[2:]),
             ],
         )
@@ -258,7 +260,7 @@ class BiconomyV2SmartAccount:
         factory_data = self.smart_account_factory_v2.encode_abi(
             fn_name="deployCounterFactualAccount",
             args=[
-                self.validation_module.get_module_address(),
+                self.validation_module.get_address(),
                 bytes.fromhex(ownership_module_setup_data[2:]),
                 self.index,
             ],
@@ -317,7 +319,7 @@ class BiconomyV2SmartAccount:
             ["bytes", "address"],
             [
                 self._sign_hash(constants.DUMMY_DATA_HASH),
-                self.validation_module.get_module_address(),
+                self.validation_module.get_address(),
             ],
         )
         userop.signature = estimation_sig
@@ -369,7 +371,7 @@ class BiconomyV2SmartAccount:
                 ["bytes", "address"],
                 [
                     signed_userop_hash,
-                    self.validation_module.get_module_address(),
+                    self.validation_module.get_address(),
                 ],
             )
             userop.signature = complete_userop_signature
@@ -458,35 +460,9 @@ class BiconomyV2SmartAccount:
         """
         Sets the contract instances for the smart account, factory, and validation modules.
         """
-        entry_point_address = constants.ENTRY_POINT_OTHER_CHAINS
-        # if using chiliz mainnet or testnet, adjust entrypoint
-        if self.provider.eth.chain_id == 88888 or self.provider.eth.chain_id == 88880:
-            entry_point_address = constants.ENTRY_POINT_CHILIZ_MAINNET_TESTNET
-
-        # Instantiate global entrypoint
-        entry_point_abi = self.read_abi("./contract_abis/entry_point.json")
-        self.entry_point = self.provider.eth.contract(
-            address=entry_point_address,
-            abi=entry_point_abi,
-        )
-
-        # Instantiate global SA factory
-        smart_account_factory_v2_abi = self.read_abi(
-            "./contract_abis/smart_account_factory_v2.json"
-        )
-        self.smart_account_factory_v2 = self.provider.eth.contract(
-            address=constants.SMART_ACCOUNT_FACTORY_V2,
-            abi=smart_account_factory_v2_abi,
-        )
-
-        # Instantiate global SA implementation
-        smart_account_implementation_v2_abi = self.read_abi(
-            "./contract_abis/smart_account_implementation_v2.json"
-        )
-        self.smart_account_implementation_v2 = self.provider.eth.contract(
-            address=constants.SMART_ACCOUNT_IMPLEMENTATION_V2,
-            abi=smart_account_implementation_v2_abi,
-        )
+        self.entry_point = constants.get_entry_point(self.provider, self.provider.eth.chain_id)
+        self.smart_account_factory_v2 = constants.get_smart_account_factory_v2(self.provider)
+        self.smart_account_implementation_v2 = constants.get_smart_account_implementation_v2(self.provider)
 
     def _check_index(self):
         """
@@ -522,30 +498,13 @@ class BiconomyV2SmartAccount:
             ValueError: If the validation module is not supported or unknown.
         """
         if self.validation_module == ValidationModule.ECDSA:
-            # Instantiate global ECDSA implementation
-            ecdsa_ownership_module_abi = self.read_abi(
-                "./contract_abis/ecdsa_ownership_module.json"
-            )
-            ecdsa_ownership_module = self.provider.eth.contract(
-                address=self.validation_module.get_module_address(),
-                abi=ecdsa_ownership_module_abi,
-            )
-            return ecdsa_ownership_module.encode_abi(
+            return self.ecdsa_ownership_module.encode_abi(
                 fn_name="initForSmartAccount", args=[self.eoa_address]
             )
         elif self.validation_module == ValidationModule.SESSION_KEY_MANAGER_V1:
-            # Instantiate global ECDSA implementation
-            session_key_manager_module_abi = self.read_abi(
-                "./contract_abis/ecdsa_ownership_module.json"
-            )
-            session_key_manager_module = self.provider.eth.contract(
-                address=self.validation_module.get_module_address(),
-                abi=session_key_manager_module_abi,
-            )
-            return session_key_manager_module.encode_abi(
+            return self.session_key_manager_module.encode_abi(
                 fn_name="setMerkleRoot", args=[]
             )
-            raise ValueError(f"Module not yet supported: {self.validation_module}")
         else:
             raise ValueError(f"Unknown validation module: {self.validation_module}")
 

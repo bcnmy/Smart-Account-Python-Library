@@ -6,3 +6,4 @@ eth-account==0.13.1
 python-dotenv>=1.0.0
 pymerkle==6.1.0
 pysha3==1.0.2
+appdirs==1.4.4

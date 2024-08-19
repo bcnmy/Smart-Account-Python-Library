@@ -1,4 +1,6 @@
 from web3 import Web3
+from web3.contract.contract import Contract
+import json
 
 # Contract Deployment Addresses
 ENTRY_POINT_CHILIZ_MAINNET_TESTNET = "0x00000061FEfce24A79343c27127435286BB7A4E1"
@@ -19,10 +21,15 @@ DEFAULT_FALLBACK_HANDLER_ADDRESS = "0x0bBa6d96BD616BedC6BFaa341742FD43c60b83C1"
 
 DUMMY_DATA_HASH = b"\xad2(\xb6v\xf7\xd3\xcdB\x84\xa5D?\x17\xf1\x96+6\xe4\x91\xb3\n@\xb2@XI\xe5\x97\xba_\xb5"
 
+HASH_FUNCTION = "keccak256"
+APP_NAME = "PyBico"
+APP_AUTHOR = "Biconomy"
 
 # Proxy byte code
 IMPLEMENTATION_ADDRESS_INT = int(SMART_ACCOUNT_IMPLEMENTATION_V2, 16)
-PROXY_CREATION_CODE_HEX = "6080346100aa57601f61012038819003918201601f19168301916001600160401b038311848410176100af578084926020946040528339810103126100aa57516001600160a01b0381168082036100aa5715610065573055604051605a90816100c68239f35b60405162461bcd60e51b815260206004820152601e60248201527f496e76616c696420696d706c656d656e746174696f6e206164647265737300006044820152606490fd5b600080fd5b634e487b7160e01b600052604160045260246000fdfe608060405230546000808092368280378136915af43d82803e156020573d90f35b3d90fdfea2646970667358221220a03b18dce0be0b4c9afe58a9eb85c35205e2cf087da098bbf1d23945bf89496064736f6c63430008110033"
+PROXY_CREATION_CODE_HEX = (
+    "6080346100aa57601f61012038819003918201601f19168301916001600160401b038311848410176100af578084926020946040528339810103126100aa57516001600160a01b0381168082036100aa5715610065573055604051605a90816100c68239f35b60405162461bcd60e51b815260206004820152601e60248201527f496e76616c696420696d706c656d656e746174696f6e206164647265737300006044820152606490fd5b600080fd5b634e487b7160e01b600052604160045260246000fdfe608060405230546000808092368280378136915af43d82803e156020573d90f35b3d90fdfea2646970667358221220a03b18dce0be0b4c9afe58a9eb85c35205e2cf087da098bbf1d23945bf89496064736f6c63430008110033"
+)
 PROXY_CREATION_CODE_BYTES = bytes.fromhex(PROXY_CREATION_CODE_HEX)
 PROXY_CREATION_CODE_HASH = Web3.solidity_keccak(
     ["bytes", "uint256"], [PROXY_CREATION_CODE_BYTES, IMPLEMENTATION_ADDRESS_INT]
@@ -38,3 +45,33 @@ DEFAULT_PAYMASTER_CONTEXT = {
         "smartAccountInfo": {"name": "BICONOMY", "version": "2.0.0"},
     },
 }
+
+# Utility function to read ABI from a file
+def read_abi(file_path: str) -> list:
+    with open(file_path, "r") as file:
+        abi = json.load(file)
+    return abi
+
+# Functions to instantiate contracts
+def get_smart_account_implementation_v2(provider: Web3) -> type[Contract]:
+    abi = read_abi("./contract_abis/smart_account_implementation_v2.json")
+    return provider.eth.contract(address=SMART_ACCOUNT_IMPLEMENTATION_V2, abi=abi)
+
+def get_smart_account_factory_v2(provider: Web3) -> type[Contract]:
+    abi = read_abi("./contract_abis/smart_account_factory_v2.json")
+    return provider.eth.contract(address=SMART_ACCOUNT_FACTORY_V2, abi=abi)
+
+def get_ecdsa_ownership_module(provider: Web3) -> type[Contract]:
+    abi = read_abi("./contract_abis/ecdsa_ownership_module.json")
+    return provider.eth.contract(address=ECDSA_OWNERSHIP_MODULE, abi=abi)
+
+def get_session_key_manager_module(provider: Web3) -> type[Contract]:
+    abi = read_abi("./contract_abis/session_key_manager_module.json")
+    return provider.eth.contract(address=ECDSA_OWNERSHIP_MODULE, abi=abi)
+
+def get_entry_point(provider: Web3, chain_id: int) -> type[Contract]:
+    entry_point_address = ENTRY_POINT_OTHER_CHAINS
+    if chain_id == 88888 or chain_id == 88880:
+        entry_point_address = ENTRY_POINT_CHILIZ_MAINNET_TESTNET
+    abi = read_abi("./contract_abis/entry_point.json")
+    return provider.eth.contract(address=entry_point_address, abi=abi)
